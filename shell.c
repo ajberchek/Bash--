@@ -1,8 +1,26 @@
 #include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
 #include <string.h>
+#include <sys/types.h>
+
 
 int max(int a, int b) {
 	return a > b ? a : b;
+}
+
+void parseIn(char *datIn, char **datOut, char* argCount) {
+    int datOutCount = 0, i = 0;
+    datOut[datOutCount++] = datIn;
+    for(; datIn[i] != '\n'; ++i) {
+        if(datIn[i] == ' ' && datIn[i+1] != 0) {
+            datOut[datOutCount++] = &datIn[i+1];
+            datIn[i] = 0;
+        }
+    }
+    datIn[i] = 0;
+    datOut[datOutCount] = 0;
+    *argCount = datOutCount;
 }
 
 void parsePipes(char** params, int numParams, char*** individCommands, int numIndivid) {
@@ -61,31 +79,51 @@ void execCommands(char*** commands, int numCommands) {
         }
     }
 
-    close(pipefd[1]);
+    if(numCommands != 0) {
+        close(pipefd[1]);
+    }
     execvp(commands[numCommands][0],commands[numCommands]);
 }
 
-int main() {
-    char* a = "ls";
-    char* b = "|";
-    char* c = "strings";
-    char* d = "|";
-    char* e = "wc";
-    char** argv = (char**)malloc(5*sizeof(char*));
-    argv[0] = a;
-    argv[1] = b;
-    argv[2] = c;
-    argv[3] = d;
-    argv[4] = e;
-    int argc = 5;
+int main()
+{
+    int status;
+    char datIn[100];
+    char* args[100];
 
-    int numPipes = countPipes(argv,argc);
-    int maxNumParams = maxParams(argv,argc);
-    char*** individCommands = (char***)malloc((numPipes+1)*sizeof(char**));
-    for(int i = 0; i <= numPipes; ++i) {
-        individCommands[i] = (char**)malloc((maxNumParams+1)*sizeof(char**));
+    while(1)
+    {
+        if(read(0,datIn,100) > 0)
+        {
+            int argCount;
+            parseIn(datIn,args,&argCount);
+
+            int pid = fork();
+            if(pid == 0)
+            {
+                int numPipes = countPipes(args,argCount);
+                int maxNumParams = maxParams(args,argCount);
+                char*** individCommands = (char***)malloc((numPipes+1)*sizeof(char**));
+                for(int i = 0; i <= numPipes; ++i) {
+                    individCommands[i] = (char**)malloc((maxNumParams+1)*sizeof(char**));
+                }
+
+                parsePipes(args, argCount,individCommands,numPipes);
+                execCommands(individCommands,numPipes);
+
+            }
+            else if(pid > 0)
+            {
+                if((pid = waitpid(pid,&status,0)) < 0)
+                {
+                    write(2,"waitpid error",13);
+                }
+                write(1,">",1);
+            }
+            else
+            {
+                printf("ERROR!");
+            }
+        }
     }
-
-    parsePipes(argv, argc,individCommands,numPipes);
-    execCommands(individCommands,numPipes);
 }
