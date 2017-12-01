@@ -111,6 +111,10 @@ int main()
                 parsePipes(args, argCount,individCommands,numPipes);
                 execCommands(individCommands,numPipes);
 
+                for(int i = 0; i <= numPipes; ++i) {
+                    free(individCommands[i]);
+                }
+                free(individCommands);
             }
             else if(pid > 0)
             {
